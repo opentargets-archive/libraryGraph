@@ -1,7 +1,7 @@
 {
-  "name": "pubmedSearchViewer",
+  "name": "ots-graph",
   "version": "0.0.1",
-  "description": "pubmedNetworkViewer",
+  "description": "Graph visualisation component for Open Targets Search",
   "main": "index.js",
   "directories": {
     "example": "examples"
@@ -47,8 +47,9 @@
   },
   "keywords": [
     "network",
-    "pubmed",
-    "visualisation"
+    "OpenTargets",
+    "visualisation",
+    "graph"
   ],
   "author": "Miguel Pignatelli <emepyc@gmail.com>",
   "license": "Apache-2.0"
