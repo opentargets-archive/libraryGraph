@@ -18,8 +18,6 @@ export function getQuery(query, fields) {
 
     return axios.get('https://wt-emepyc-gmail-com-0.run.webtask.io/kibana-auth')
         .then (function (resp) {
-            console.log("kibana Auth response...");
-            console.log(resp);
             let token = resp.data;
             let ax = axios.create({
                 timeout: 30000,
