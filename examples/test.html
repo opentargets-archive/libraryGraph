@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <script src="https://d3js.org/d3.v4.min.js" charset="utf-8"></script>
+    <script src="../build/pubmedSearchViewer.min.js"></script>
+      <link rel="stylesheet" href="../build/pubmedSearchViewer.css" type="text/css"/>
+
+
+  </head>
+  <body>
+    <p>Hello world</p>
+    <div id="container"></div>
+    <script>
+      function restoreVisibility() {
+          graph.highlightCluster()
+              .update();
+      }
+
+      let graph = pubmedSearch()
+          .collapseSingletons(false)
+          .on("click", (d) => {
+              graph.collapseSingletons(!graph.collapseSingletons())
+                  .update();
+              console.log(graph.toggleTerminals());
+          });
+      graph(document.getElementById("container"));
+    </script>
+  </body>
+</html>
