@@ -16,18 +16,22 @@ export function getQuery(query, fields) {
         "vertices": fields,
     };
 
-    return axios.get('https://wt-emepyc-gmail-com-0.run.webtask.io/kibana-auth')
-        .then (function (resp) {
-            let token = resp.data;
-            let ax = axios.create({
-                timeout: 30000,
-                headers: {
-                    "Authorization": `Basic ${token}`
-                }
-            });
-            const url = 'https://62d68b658f9e146c7b58491bd01ea91b.eu-west-1.aws.found.io:9243/!publication-data/_xpack/_graph/_explore';
-            return ax.post(url, q);
-        });
+    let url = 'https://qkorhkwgf1.execute-api.eu-west-1.amazonaws.com/dev/graph/explore';
+
+    return axios.post(url, q);
+
+    // return axios.get('https://wt-emepyc-gmail-com-0.run.webtask.io/kibana-auth')
+    //     .then (function (resp) {
+    //         let token = resp.data;
+    //         let ax = axios.create({
+    //             timeout: 30000,
+    //             headers: {
+    //                 "Authorization": `Basic ${token}`
+    //             }
+    //         });
+    //         const url = 'https://62d68b658f9e146c7b58491bd01ea91b.eu-west-1.aws.found.io:9243/!publication-data/_xpack/_graph/_explore';
+    //         return ax.post(url, q);
+    //     });
 }
 
 
