@@ -208,6 +208,7 @@ function createForce(container, conf) {
     .call(d3.drag()
       .container(canvas.node())
       .subject(dragsubject)
+      .on('start', clicked)
       .on('drag', dragged),
     )
     .call(d3.zoom()
@@ -256,15 +257,13 @@ function createForce(container, conf) {
     /* eslint consistent-return: 0 */
     const x = transform.invertX(d3.event.x);
     const y = transform.invertY(d3.event.y);
-    console.log(`${x},${y}`);
     const thisNode = force.find(x, y, conf.maxNodeSize);
-    console.log(thisNode);
-    if (!thisNode) return;
+    if (!thisNode) {
+      unselectAll();
+      return;
+    }
     thisNode.x = transform.applyX(thisNode.x);
     thisNode.y = transform.applyY(thisNode.y);
-    console.log('returning this node...');
-    console.log(thisNode);
-    console.log(d3.event);
     return thisNode;
   }
 
@@ -284,10 +283,17 @@ function createForce(container, conf) {
   }
 
   function clicked() {
-    d3.event.defaultPrevented;
-    const clickedNode = dragsubject();
-    console.log('clicked node is...');
-    console.log(clickedNode);
+    const subject = d3.event.subject;
+    d3.event.subject.x = transform.invertX(d3.event.x);
+    d3.event.subject.y = transform.invertY(d3.event.y);
+    if (subject.trullySelected === true) {
+      unselectAll();
+    }
+    else {
+      selectNode(subject);
+      subject.trullySelected = true;
+    }
+    redraw();
   }
 
   // function dragended() {
@@ -296,10 +302,47 @@ function createForce(container, conf) {
   //   d3.event.subject.fy = null;
   // }
 
+  function unselectAll() {
+    const nodes = data.nodes;
+    nodes.forEach((d) => {
+      delete d.selected;
+      delete d.trullySelected;
+    });
+  }
+
+  function selectNode(n) {
+    /* eslint no-param-reassign: 0 */
+    unselectAll();
+
+    const links = data.links;
+    links.forEach((d) => {
+      if ((d.source.index === n.index) || (d.target.index === n.index)) {
+        d.source.selected = true;
+        d.target.selected = true;
+      }
+      else {
+        if (d.source.selected !== true) {
+          d.source.selected = false;
+        }
+        if (d.target.selected !== true) {
+          d.target.selected = false;
+        }
+      }
+    });
+  }
+
   function drawLink(d) {
     context.beginPath();
     context.strokeStyle = '#8da0cb';
-    context.globalAlpha = 0.5;
+    if ((d.source.selected === true) && (d.target.selected === true)) {
+      context.globalAlpha = 0.5;
+    }
+    else if ((d.source.selected === false) || (d.target.selected === false)) {
+      context.globalAlpha = 0.05;
+    }
+    else {
+      context.globalAlpha = 0.5;
+    }
     context.moveTo(d.source.x, d.source.y);
     context.lineWidth = linkWeightScale(d.weight);
     context.lineTo(d.target.x, d.target.y);
@@ -314,25 +357,41 @@ function createForce(container, conf) {
     context.beginPath();
     context.moveTo(d.x, d.y);
     context.fillStyle = conf.colors[d.field];
-    context.globalAlpha = 0.5;
+    if (d.selected === true) {
+      context.globalAlpha = 0.8;
+    }
+    else if (d.selected === false) {
+      context.globalAlpha = 0.05;
+    }
+    else {
+      context.globalAlpha = 0.5;
+    }
     context.arc(d.x, d.y, nodeSize, 0, 2 * Math.PI);
     context.fill();
 
     // circle
-    context.beginPath();
-    context.globalAlpha = 1;
-    context.arc(d.x, d.y, nodeSize + 1, 0, 2 * Math.PI);
-    context.strokeStyle = conf.colors[d.field];
-    context.stroke();
-    if (d.selected) {
+    if (d.selected === true) {
       context.beginPath();
       context.globalAlpha = 1;
       context.arc(d.x, d.y, nodeSize + 5, 0, 2 * Math.PI);
       context.strokeStyle = conf.colors[d.field];
       context.stroke();
     }
+    else if (d.selected !== false) {
+      context.beginPath();
+      context.globalAlpha = 0.5;
+      context.arc(d.x, d.y, nodeSize + 1, 0, 2 * Math.PI);
+      context.strokeStyle = conf.colors[d.field];
+      context.stroke();
+    }
 
     // label
+    if (d.selected !== false) {
+      context.globalAlpha = 1;
+    }
+    else {
+      context.globalAlpha = 0;
+    }
     context.textAlign = 'center';
     context.fillStyle = 'black';
     context.fillText(d.term, d.x, d.y + (nodeSize + 15));
