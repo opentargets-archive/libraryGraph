@@ -1,85 +1,103 @@
-
 import createNodes from './nodes.js';
 
 import axios from 'axios';
 
 export function getQuery(query, fields) {
-    let q = {
-        "query": {
-            "query_string": {
-                "query": query
-            }
-        }
-        ,
-        "controls": {"use_significance": true, "sample_size": 2000, "timeout": 5000},
-        "connections": {"vertices": fields},
-        "vertices": fields,
-    };
+  const q = {
+    query: {
+      query_string: {
+        query: query,
+      },
+    },
+    controls: { use_significance: true, sample_size: 2000, timeout: 5000 },
+    connections: { vertices: fields },
+    vertices: fields,
+  };
 
-    let url = 'https://qkorhkwgf1.execute-api.eu-west-1.amazonaws.com/dev/graph/explore';
+  let url = 'https://qkorhkwgf1.execute-api.eu-west-1.amazonaws.com/dev/graph/explore';
 
-    return axios.post(url, q);
+  return axios.post(url, q);
 
-    // return axios.get('https://wt-emepyc-gmail-com-0.run.webtask.io/kibana-auth')
-    //     .then (function (resp) {
-    //         let token = resp.data;
-    //         let ax = axios.create({
-    //             timeout: 30000,
-    //             headers: {
-    //                 "Authorization": `Basic ${token}`
-    //             }
-    //         });
-    //         const url = 'https://62d68b658f9e146c7b58491bd01ea91b.eu-west-1.aws.found.io:9243/!publication-data/_xpack/_graph/_explore';
-    //         return ax.post(url, q);
-    //     });
+  // return axios.get('https://wt-emepyc-gmail-com-0.run.webtask.io/kibana-auth')
+  //     .then (function (resp) {
+  //         let token = resp.data;
+  //         let ax = axios.create({
+  //             timeout: 30000,
+  //             headers: {
+  //                 "Authorization": `Basic ${token}`
+  //             }
+  //         });
+  //         const url = 'https://62d68b658f9e146c7b58491bd01ea91b.eu-west-1.aws.found.io:9243/!publication-data/_xpack/_graph/_explore';
+  //         return ax.post(url, q);
+  //     });
 }
 
+export function setInteractors(nodes, links) {
+  // nodes dict
+  const nodesDict = {};
+  nodes.forEach((d) => {
+    const k = `${d.term}-${d.field}`;
+    d.interactors = [];
+    d.selected = 0;
+    nodesDict[k] = d;
+  });
 
-export function toggleTerminals() {
-    config.terminals = !config.terminals;
-    console.log(`config.terminals is ${config.terminals}`);
-    let {nodes: allNodes, links: allLinks} = nodes.getAll({terminals: config.terminals});
-    return {
-        nodes: allNodes,
-        links: allLinks
-    };
+  // First interactors for each node
+  links.forEach((l) => {
+    const source = nodes[l.source];
+    const target = nodes[l.target];
+    const kSource = `${source.term}-${source.field}`;
+    const kTarget = `${target.term}-${target.field}`;
+    nodesDict[kSource].interactors.push(target);
+    nodesDict[kTarget].interactors.push(source);
+  });
 }
 
-export function highlightCluster(nodeId) {
-    let _allNodes = nodes.getNodes();
+// export function toggleTerminals() {
+//   config.terminals = !config.terminals;
+//   console.log(`config.terminals is ${config.terminals}`);
+//   let {nodes: allNodes, links: allLinks} = nodes.getAll({terminals: config.terminals});
+//   return {
+//     nodes: allNodes,
+//     links: allLinks
+//   };
+// }
 
-    // If a node is not passed, highlight all
-    if (!nodeId) {
-        for (let node of _allNodes) {
-            node.visible = true;
-        }
-    } else {
-        // Remove highlighting from all the nodes
-        for (let node of _allNodes) {
-            node.visible = false;
-        }
-
-        // Test clustering...
-        let node = nodes.getNode(nodeId);
-        // It may be a clustered node, if so, take the first outLink...
-        if (!node) {
-            node = nodes.getNode(nodeId.split('-')[0]);
-        }
-
-        let disease1 = nodes.getNode(config.efo1);
-        let disease2 = nodes.getNode(config.efo2);
-        let cluster = nodes.getCluster(node, [disease1, disease2]);
-        for (let node of cluster) {
-            node.visible = true;
-        }
-    }
-
-    let {nodes: allNodes, links: allLinks} = nodes.getAll({terminals: config.terminals});
-    return {
-        nodes: allNodes,
-        links: allLinks
-    };
-}
+// export function highlightCluster(nodeId) {
+//   let _allNodes = nodes.getNodes();
+//
+//   // If a node is not passed, highlight all
+//   if (!nodeId) {
+//     for (let node of _allNodes) {
+//       node.visible = true;
+//     }
+//   } else {
+//     // Remove highlighting from all the nodes
+//     for (let node of _allNodes) {
+//       node.visible = false;
+//     }
+//
+//     // Test clustering...
+//     let node = nodes.getNode(nodeId);
+//     // It may be a clustered node, if so, take the first outLink...
+//     if (!node) {
+//       node = nodes.getNode(nodeId.split('-')[0]);
+//     }
+//
+//     let disease1 = nodes.getNode(config.efo1);
+//     let disease2 = nodes.getNode(config.efo2);
+//     let cluster = nodes.getCluster(node, [disease1, disease2]);
+//     for (let node of cluster) {
+//       node.visible = true;
+//     }
+//   }
+//
+//   let {nodes: allNodes, links: allLinks} = nodes.getAll({terminals: config.terminals});
+//   return {
+//     nodes: allNodes,
+//     links: allLinks
+//   };
+// }
 
 // function extractTargets(d1, d2) {
 //     let targets = new Set();
@@ -108,34 +126,34 @@ export function highlightCluster(nodeId) {
 //     }
 // }
 
-function getInteractors(uniprotId) {
-    const url = `http://www.omnipathdb.org/interactions/${uniprotId}?format=json&fields=sources`;
-    return axios.get(url)
-        .then(function (resp) {
-            // Here we are interested in proteins that interact with 2 targets (both associated with different diseases)
-            let data = resp.body;
-            let newLinks = new Map();
-            for (let link of data) {
-                let {source, target, sources} = link;
-
-                // Only take into account IntAct data
-                let hasIntact;
-                for (let i = 0; i < sources.length; i++) {
-                    if (sources[i] === 'IntAct') {
-                        // if (sources[i] === 'STRING') {
-                        hasIntact = true;
-                        break;
-                    }
-                }
-                if (hasIntact) {
-                    addNewLink(source, target, newLinks);
-                    // addNewLink (target, source, newLinks);
-                }
-            }
-            return newLinks;
-        });
-
-}
+// function getInteractors(uniprotId) {
+//   const url = `http://www.omnipathdb.org/interactions/${uniprotId}?format=json&fields=sources`;
+//   return axios.get(url)
+//     .then(function (resp) {
+//       // Here we are interested in proteins that interact with 2 targets (both associated with different diseases)
+//       let data = resp.body;
+//       let newLinks = new Map();
+//       for (let link of data) {
+//         let {source, target, sources} = link;
+//
+//         // Only take into account IntAct data
+//         let hasIntact;
+//         for (let i = 0; i < sources.length; i++) {
+//           if (sources[i] === 'IntAct') {
+//             // if (sources[i] === 'STRING') {
+//             hasIntact = true;
+//             break;
+//           }
+//         }
+//         if (hasIntact) {
+//           addNewLink(source, target, newLinks);
+//           // addNewLink (target, source, newLinks);
+//         }
+//       }
+//       return newLinks;
+//     });
+//
+// }
 
 // function getTargets(efo, size, minScore) {
 //     const url = api.url.associations({
@@ -153,12 +171,12 @@ function getInteractors(uniprotId) {
 //         });
 // }
 
-function addNewLink(key, newVal, links) {
-    if (!links.has(key)) {
-        links.set(key, new Set());
-    }
-    links.get(key).add(newVal);
-}
+// function addNewLink(key, newVal, links) {
+//   if (!links.has(key)) {
+//     links.set(key, new Set());
+//   }
+//   links.get(key).add(newVal);
+// }
 
 // Uniprot to symbols mapping
 // let u2s = new Map();
