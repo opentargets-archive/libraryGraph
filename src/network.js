@@ -288,9 +288,10 @@ function drawNode(d) {
       context.globalAlpha = 0;
     }
   }
+  context.font='9px Arial';
   context.textAlign = 'center';
   context.fillStyle = 'black';
-  context.fillText(d.term, d.x, d.y + (nodeSize + 15));
+  context.fillText(d.term, d.x, d.y + (nodeSize + 12));
 }
 
 function redraw() {
