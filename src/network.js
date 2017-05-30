@@ -347,7 +347,7 @@ function createForce(container, conf) {
   //.force('links', d3.forceLink(data.links).strength(1).distance(300).iterations(1))
     .force('charge', d3.forceManyBody().strength(-10))
     .force('center', d3.forceCenter().x(conf.width / 2).y(conf.height / 2))
-    .force('collision', d3.forceCollide().radius(conf.nodeSize * 3))
+    .force('collision', d3.forceCollide().radius(conf.nodeSize * 4))
     .force('links', d3.forceLink(data.links))
     .stop();
 

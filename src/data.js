@@ -9,7 +9,7 @@ export function getQuery(query, fields) {
         query: query,
       },
     },
-    controls: { use_significance: true, sample_size: 2000, timeout: 5000 },
+    controls: { use_significance: true, sample_size: 10000, timeout: 5000 },
     connections: { vertices: fields },
     vertices: fields,
   };
