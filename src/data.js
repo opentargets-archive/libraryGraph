@@ -1,4 +1,4 @@
-import createNodes from './nodes.js';
+// import createNodes from './nodes.js';
 
 import axios from 'axios';
 
@@ -30,6 +30,30 @@ export function getQuery(query, fields) {
   //         const url = 'https://62d68b658f9e146c7b58491bd01ea91b.eu-west-1.aws.found.io:9243/!publication-data/_xpack/_graph/_explore';
   //         return ax.post(url, q);
   //     });
+}
+
+export function processTopics(vertices, topics) {
+  const newTopics = [];
+
+  const verticesByTopics = {};
+  vertices.forEach((v) => {
+    if (verticesByTopics[v.topic] === undefined) {
+      verticesByTopics[v.topic] = [];
+    }
+    verticesByTopics[v.topic].push(v);
+  });
+
+  topics.forEach((t, i) => {
+    if (t.connected_topics.top.length) {
+      newTopics.push({
+        id: i,
+        name: vertices[t.connected_topics.top[0]].term,
+        topVertices: t.connected_topics.top,
+        vertices: verticesByTopics[i],
+      });
+    }
+  });
+  return newTopics;
 }
 
 export function setInteractors(nodes, links) {

@@ -1,8 +1,15 @@
 /* global d3:true */
 
 import apijs from 'tnt.api';
+import { schemePaired as topicColor } from 'd3-scale-chromatic';
+
 // import {getData, highlightCluster, toggleTerminals} from './data.js';
-import { getQuery, setInteractors } from './data';
+import { getQuery, setInteractors, processTopics } from './data';
+import polygon from './polygon';
+
+
+// polygon([{ x: 100, y: 50 }, { x: 24, y: 88 }, { x: 8, y: 134 }, { x: 23, y: 90 }, { x: 90, y: 90 }, { x: 50, y: 130 }]);
+// polygon([{x:20,y:40},{x:10,y:20},{x:40,y:30}]);
 
 let force;
 // let link;
@@ -32,24 +39,31 @@ const dispatch = d3.dispatch('click', 'dblclick', 'mouseover', 'mouseout', 'load
 
 export default function () {
   const render = function (container) {
-
     getQuery(config.query, config.fields)
       .then((resp) => {
         console.log(resp);
+        const graph = resp.data.graph;
 
-        setInteractors(resp.data.vertices, resp.data.connections);
+        setInteractors(graph.vertices, graph.connections);
+        const topics = processTopics(graph.vertices, resp.data.topics);
 
         // If there is no graph, just fire the 'failed' event
-        if (!resp.data.vertices.length || resp.status !== 200) {
+        if (!graph.vertices.length || resp.status !== 200) {
           dispatch.call('failed');
           return;
         }
 
-        config.data.nodes = resp.data.vertices;
-        config.data.links = resp.data.connections;
+        config.data.nodes = graph.vertices;
+        config.data.links = graph.connections;
+        config.data.topics = topics;
+
+        getInitialPositions();
 
         createForce(container, config);
-        dispatch.call('loaded');
+        dispatch.call('loaded', this, {
+          graph,
+          topics,
+        });
       })
       .catch((err) => {
         console.trace(err.message);
@@ -80,6 +94,20 @@ export default function () {
   render.select = programmaticClick;
 
   return render;
+}
+
+function getInitialPositions() {
+  const vertices = config.data.nodes;
+  const topics = config.data.topics;
+  const dimBuckets = 1 + ~~Math.sqrt(topics.length);
+  vertices.forEach((d) => {
+    const row = Math.floor((d.topic) / dimBuckets);
+    const pos = (d.topic) % dimBuckets;
+    const x = (~~(config.width / dimBuckets)) * pos;
+    const y = (~~(config.height / dimBuckets)) * row;
+    d.x = x;
+    d.y = y;
+  });
 }
 
 // function highlightCluster(n) {
@@ -217,6 +245,91 @@ function selectNode(sNode) {
   selected.set(key, sNode);
 }
 
+function drawTopic(topic) {
+  console.log(topic);
+  const topicPoints = topic.vertices;
+  const topicPoly = topic.polygon;
+
+  // The topics are not drawn while positioning the nodes
+  // They are drawn only at the end, but should be included here to follow dragged nodes
+  if (topicPoly && topicPoints.length >= 3) {
+    // const topicPoly = polygon (topicPoints);
+    const topicId = topicPoly[0].topic;
+    context.beginPath();
+    context.fillStyle = topicId < 13 ? topicColor[topicId] : '#dddddd';
+    context.strokeStyle = topicId < 13 ? topicColor[topicId] : '#dddddd';
+    context.globalAlpha = 0.3;
+    context.moveTo(topicPoly[0].x, topicPoly[0].y);
+    for (let i = 1; i < topicPoly.length; i += 1) {
+      context.lineTo(topicPoly[i].x, topicPoly[i].y);
+    }
+    context.closePath();
+    context.fill();
+  }
+}
+
+// function drawTopic(topic) {
+//   const topicPoints = topic.vertices;
+//   if (topicPoints.length > 3) {
+//     const topicPoly = polygon (topicPoints);
+//     const topicId = topicPoly[0].topic;
+//
+//     context.beginPath();
+//     context.fillStyle = topicId < 10 ? topicColor[topicId] : '#dddddd';
+//     context.strokeStyle = topicId < 10 ? topicColor[topicId] : '#dddddd';
+//     context.globalAlpha = 0.3;
+//
+//     // move to the first point
+//     context.moveTo(topicPoly[0].x, topicPoly[0].y);
+//
+//
+//     let i;
+//     for (i = 1; i < topicPoly.length - 2; i += 1) {
+//       const xc = (topicPoly[i].x + topicPoly[i + 1].x) / 2;
+//       const yc = (topicPoly[i].y + topicPoly[i + 1].y) / 2;
+//       context.quadraticCurveTo(topicPoly[i].x, topicPoly[i].y, xc, yc);
+//     }
+//     // curve through the last two points
+//     context.quadraticCurveTo(topicPoly[i].x, topicPoly[i].y, topicPoly[i + 1].x, topicPoly[i + 1].y);
+//     context.closePath();
+//     context.fill();
+//   }
+// }
+
+// function drawTopic(topic) {
+//   let maxX = -Infinity,
+//     minX = Infinity,
+//     maxY = -Infinity,
+//     minY = Infinity;
+//
+//   topic.vertices.forEach((v) => {
+//     const n = config.data.nodes[v];
+//     const x = n.x;
+//     const y = n.y;
+//     if (x < minX) {
+//       minX = x;
+//     }
+//     if (x > maxX) {
+//       maxX = x;
+//     }
+//     if (y < minY) {
+//       minY = y;
+//     }
+//     if (y > maxY) {
+//       maxY = y;
+//     }
+//   });
+//
+//   console.log(`minX: ${minX}, maxX: ${maxX}, minY: ${minY}, maxY: ${maxY}`);
+//   context.beginPath();
+//   context.strokeStyle = 'red';
+//   // context.moveTo(minX + ~~((maxX - minX) / 2), minY + ~~((maxY - minX) / 2));
+//   context.fillStyle = 'red';
+//   context.globalAlpha = 0.1;
+//   context.fillRect(minX, minY, (maxX - minX), (maxY - minY));
+//   context.stroke();
+// }
+
 function drawLink(d) {
   context.beginPath();
   context.strokeStyle = '#8da0cb';
@@ -244,18 +357,19 @@ function drawNode(d) {
   // Node
   context.beginPath();
   context.moveTo(d.x, d.y);
-  context.fillStyle = config.colors[d.field];
-  if (selected.size === 0) {
-    context.globalAlpha = 0.5;
-  }
-  else {
-    if (d.selected > 0) {
-      context.globalAlpha = 0.8;
-    }
-    else {
-      context.globalAlpha = 0.05;
-    }
-  }
+  // context.fillStyle = config.colors[d.field];
+  context.fillStyle = d.topic < 13 ? topicColor[d.topic] : '#dddddd';
+  // if (selected.size === 0) {
+  //   context.globalAlpha = 0.5;
+  // }
+  // else {
+  //   if (d.selected > 0) {
+  //     context.globalAlpha = 0.8;
+  //   }
+  //   else {
+  //     context.globalAlpha = 0.05;
+  //   }
+  // }
   context.arc(d.x, d.y, nodeSize, 0, 2 * Math.PI);
   context.fill();
 
@@ -288,7 +402,7 @@ function drawNode(d) {
       context.globalAlpha = 0;
     }
   }
-  context.font='9px Arial';
+  context.font = '9px Arial';
   context.textAlign = 'center';
   context.fillStyle = 'black';
   context.fillText(d.term, d.x, d.y + (nodeSize + 12));
@@ -308,9 +422,11 @@ function redraw() {
   // Draw nodes
   data.nodes.forEach(drawNode);
 
+  // Draw topics
+  data.topics.forEach(drawTopic);
+
   context.restore();
 }
-
 
 function createForce(container, conf) {
   const meter = d3.select(container)
@@ -335,20 +451,21 @@ function createForce(container, conf) {
   const data = conf.data;
 
   // Initialise the all the nodes in a sensible place
-  data.nodes[0].x = ~~conf.width / 3;
-  data.nodes[0].y = conf.height / 2;
-  data.nodes[1].x = ~~(conf.width - (conf.width / 3));
-  data.nodes[1].y = ~~conf.height / 2;
-  for (let k = 2; k < data.nodes.length; k += 1) {
-    data.nodes[k].x = ~~conf.width / 2;
-    data.nodes[k].y = ~~conf.height / 2;
-  }
+  // data.nodes[0].x = ~~conf.width / 3;
+  // data.nodes[0].y = conf.height / 2;
+  // data.nodes[1].x = ~~(conf.width - (conf.width / 3));
+  // data.nodes[1].y = ~~conf.height / 2;
+  // for (let k = 2; k < data.nodes.length; k += 1) {
+  //   data.nodes[k].x = ~~conf.width / 2;
+  //   data.nodes[k].y = ~~conf.height / 2;
+  // }
 
   force = d3.forceSimulation(data.nodes)
-  //.force('links', d3.forceLink(data.links).strength(1).distance(300).iterations(1))
+    //.force('links', d3.forceLink(data.links).strength(1).distance(300).iterations(1))
+    // .force('charge', d3.forceManyBody().strength(-10))
     .force('charge', d3.forceManyBody().strength(-10))
     .force('center', d3.forceCenter().x(conf.width / 2).y(conf.height / 2))
-    .force('collision', d3.forceCollide().radius(conf.nodeSize * 4))
+    .force('collision', d3.forceCollide().radius(conf.maxNodeSize))
     .force('links', d3.forceLink(data.links))
     .stop();
 
@@ -377,7 +494,6 @@ function createForce(container, conf) {
   ticked();
   ended();
 
-
   function ticked() {
     const progress = 1 - force.alpha();
     meter.style.width = `${100 * progress}%`;
@@ -386,6 +502,12 @@ function createForce(container, conf) {
 
   function ended() {
     meter.style.display = 'none';
+
+    // Calculate all the polygons
+    config.data.topics.forEach((t) => {
+      t.polygon = polygon(t.vertices);
+    });
+    data.topics.forEach(drawTopic);
   }
 
   function dragsubject() {
