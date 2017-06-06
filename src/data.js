@@ -1,6 +1,7 @@
 // import createNodes from './nodes.js';
 
 import axios from 'axios';
+import { schemePaired as topicColor } from 'd3-scale-chromatic';
 
 export function getQuery(query, fields) {
   const q = {
@@ -33,6 +34,7 @@ export function getQuery(query, fields) {
 }
 
 export function processTopics(vertices, topics) {
+  /* eslint no-param-reassign: 0 */
   const newTopics = [];
 
   const verticesByTopics = {};
@@ -43,16 +45,26 @@ export function processTopics(vertices, topics) {
     verticesByTopics[v.topic].push(v);
   });
 
+  const topicCorr = {};
   topics.forEach((t, i) => {
+    const id = t.topic;
+    topicCorr[t.topic] = i;
     if (t.connected_topics.top.length) {
       newTopics.push({
-        id: i,
-        name: vertices[t.connected_topics.top[0]].term,
+        id,
+        name: vertices[t.vertex].term,
         topVertices: t.connected_topics.top,
-        vertices: verticesByTopics[i],
+        vertices: verticesByTopics[id],
+        color: topicColor[i] || '#dddddd',
+        total: t.connected_topics.total + 1,
       });
     }
   });
+
+  vertices.forEach((v) => {
+    v.color = topicColor[topicCorr[v.topic]] || '#dddddd';
+  });
+
   return newTopics;
 }
 

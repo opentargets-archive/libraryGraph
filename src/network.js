@@ -1,7 +1,6 @@
 /* global d3:true */
 
 import apijs from 'tnt.api';
-import { schemePaired as topicColor } from 'd3-scale-chromatic';
 
 // import {getData, highlightCluster, toggleTerminals} from './data.js';
 import { getQuery, setInteractors, processTopics } from './data';
@@ -42,16 +41,17 @@ export default function () {
     getQuery(config.query, config.fields)
       .then((resp) => {
         console.log(resp);
-        const graph = resp.data.graph;
 
-        setInteractors(graph.vertices, graph.connections);
-        const topics = processTopics(graph.vertices, resp.data.topics);
+        const graph = resp.data.graph;
 
         // If there is no graph, just fire the 'failed' event
         if (!graph.vertices.length || resp.status !== 200) {
           dispatch.call('failed');
           return;
         }
+
+        setInteractors(graph.vertices, graph.connections);
+        const topics = processTopics(graph.vertices, resp.data.topics);
 
         config.data.nodes = graph.vertices;
         config.data.links = graph.connections;
@@ -92,6 +92,8 @@ export default function () {
   };
 
   render.select = programmaticClick;
+
+  render.clickTopic = clickTopic;
 
   return render;
 }
@@ -196,6 +198,38 @@ function getNodeKey(subject) {
 }
 
 
+function clickTopic(topic) {
+  console.log('topic selected...');
+  console.log(topic);
+
+  // Look if the topic is selected
+  const topicVertex = config.data.nodes[topic.id];
+  const key = getNodeKey(topicVertex);
+
+  // Unselection
+  if (selected.has(key)) {
+    selected.clear();
+    topic.vertices.forEach((v) => v.selected = 0);
+  }
+  // Selection
+  else {
+    // Unselect anything previously selected
+    selected.clear();
+    config.data.nodes.forEach((v) => {
+      v.selected = 0;
+    });
+
+    // Select the vertices of the topic
+    // const topicVertex = config.data.nodes[topic.id]
+    selected.set(key, topicVertex);
+    topic.vertices.forEach((v) => {
+      v.selected = 1;
+    });
+  }
+
+  redraw();
+}
+
 function programmaticClick(subject) {
   const k = getNodeKey(subject);
   if (selected.has(k)) {
@@ -246,26 +280,25 @@ function selectNode(sNode) {
 }
 
 function drawTopic(topic) {
-  console.log(topic);
   const topicPoints = topic.vertices;
-  const topicPoly = topic.polygon;
+  //const topicPoly = topic.polygon;
 
   // The topics are not drawn while positioning the nodes
   // They are drawn only at the end, but should be included here to follow dragged nodes
-  if (topicPoly && topicPoints.length >= 3) {
-    // const topicPoly = polygon (topicPoints);
-    const topicId = topicPoly[0].topic;
-    context.beginPath();
-    context.fillStyle = topicId < 13 ? topicColor[topicId] : '#dddddd';
-    context.strokeStyle = topicId < 13 ? topicColor[topicId] : '#dddddd';
-    context.globalAlpha = 0.3;
-    context.moveTo(topicPoly[0].x, topicPoly[0].y);
-    for (let i = 1; i < topicPoly.length; i += 1) {
-      context.lineTo(topicPoly[i].x, topicPoly[i].y);
-    }
-    context.closePath();
-    context.fill();
+  //if (topicPoly && topicPoints.length >= 3) {
+  const topicPoly = polygon (topicPoints);
+  // const topicId = topicPoly[0].topic;
+  context.beginPath();
+  context.fillStyle = topic.color;
+  context.strokeStyle = topic.color;
+  context.globalAlpha = 0.3;
+  context.moveTo(topicPoly[0].x, topicPoly[0].y);
+  for (let i = 1; i < topicPoly.length; i += 1) {
+    context.lineTo(topicPoly[i].x, topicPoly[i].y);
   }
+  context.closePath();
+  context.fill();
+  //}
 }
 
 // function drawTopic(topic) {
@@ -358,18 +391,18 @@ function drawNode(d) {
   context.beginPath();
   context.moveTo(d.x, d.y);
   // context.fillStyle = config.colors[d.field];
-  context.fillStyle = d.topic < 13 ? topicColor[d.topic] : '#dddddd';
-  // if (selected.size === 0) {
-  //   context.globalAlpha = 0.5;
-  // }
-  // else {
-  //   if (d.selected > 0) {
-  //     context.globalAlpha = 0.8;
-  //   }
-  //   else {
-  //     context.globalAlpha = 0.05;
-  //   }
-  // }
+  context.fillStyle = d.color;
+  if (selected.size === 0) {
+    context.globalAlpha = 0.5;
+  }
+  else {
+    if (d.selected > 0) {
+      context.globalAlpha = 0.8;
+    }
+    else {
+      context.globalAlpha = 0.05;
+    }
+  }
   context.arc(d.x, d.y, nodeSize, 0, 2 * Math.PI);
   context.fill();
 
@@ -378,7 +411,8 @@ function drawNode(d) {
     context.beginPath();
     context.globalAlpha = 1;
     context.arc(d.x, d.y, nodeSize + 5, 0, 2 * Math.PI);
-    context.strokeStyle = config.colors[d.field];
+    // context.strokeStyle = config.colors[d.field];
+    context.strokeStyle = d.color;
     context.stroke();
   }
 
@@ -416,14 +450,14 @@ function redraw() {
   context.translate(transform.x, transform.y);
   context.scale(transform.k, transform.k);
 
+  // Draw topics
+  data.topics.forEach(drawTopic);
+
   // Draw links
   data.links.forEach(drawLink);
 
   // Draw nodes
   data.nodes.forEach(drawNode);
-
-  // Draw topics
-  data.topics.forEach(drawTopic);
 
   context.restore();
 }
@@ -504,10 +538,10 @@ function createForce(container, conf) {
     meter.style.display = 'none';
 
     // Calculate all the polygons
-    config.data.topics.forEach((t) => {
-      t.polygon = polygon(t.vertices);
-    });
-    data.topics.forEach(drawTopic);
+    // config.data.topics.forEach((t) => {
+    //   t.polygon = polygon(t.vertices);
+    // });
+    // data.topics.forEach(drawTopic);
   }
 
   function dragsubject() {
