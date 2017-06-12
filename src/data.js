@@ -3,6 +3,8 @@
 import axios from 'axios';
 import { schemePaired as topicColor } from 'd3-scale-chromatic';
 
+const topicCorr = {};
+
 export function getQuery(query, fields) {
   const q = {
     query: {
@@ -15,7 +17,7 @@ export function getQuery(query, fields) {
     vertices: fields,
   };
 
-  let url = 'https://qkorhkwgf1.execute-api.eu-west-1.amazonaws.com/dev/graph/explore';
+  const url = 'https://qkorhkwgf1.execute-api.eu-west-1.amazonaws.com/dev/graph/explore';
 
   return axios.post(url, q);
 
@@ -33,6 +35,77 @@ export function getQuery(query, fields) {
   //     });
 }
 
+
+export function processLinks(vertices, links, topics) {
+  // Get the topics correlation
+  const topicsCorr = {};
+  topics.forEach((t) => {
+    topicsCorr[t.topic] = t.vertex;
+  });
+
+  // inLinks: links between nodes in a topic
+  const inLinks = [];
+  // outLinks: links between topic nodes
+  const outLinks = [];
+  const outLinksMap = {};
+
+  links.forEach((v) => {
+    const source = vertices[v.source];
+    const target = vertices[v.target];
+
+    // Same topic
+    if (source.topic === target.topic) {
+      inLinks.push({
+        doc_count: v.doc_count,
+        source,
+        target,
+        weight: v.weight,
+        type: 'in',
+      });
+    }
+    // Different topics
+    else {
+      // 1. Identify the topics involved
+      // console.log('source...');
+      // console.log(source);
+      const sourceTopicVertex = vertices[topicsCorr[source.topic]];
+      const targetTopicVertex = vertices[topicsCorr[target.topic]];
+      // console.log('sourceTopicVertex...');
+      // console.log(sourceTopicVertex);
+
+      // 2. Set a link between them or just add to any existing link
+      if (!outLinksMap[sourceTopicVertex.term]) {
+        outLinksMap[sourceTopicVertex.term] = {};
+      }
+      if (!outLinksMap[sourceTopicVertex.term][targetTopicVertex.term]) {
+        outLinksMap[sourceTopicVertex.term][targetTopicVertex.term] = {
+          source: sourceTopicVertex,
+          target: targetTopicVertex,
+          n: 0,
+        };
+      }
+      outLinksMap[sourceTopicVertex.term][targetTopicVertex.term].n += 1;
+    }
+  });
+
+  // 3 get the outLinks based on the map
+  Object.keys(outLinksMap).forEach((s) => {
+    Object.keys(outLinksMap[s]).forEach((t) => {
+      outLinks.push({
+        doc_count: outLinksMap[s][t].n,
+        source: outLinksMap[s][t].source,
+        target: outLinksMap[s][t].target,
+        weight: 0.01,
+        type: 'out',
+      });
+    });
+  });
+  return {
+    in: inLinks,
+    out: outLinks,
+  };
+}
+
 export function processTopics(vertices, topics) {
   /* eslint no-param-reassign: 0 */
   const newTopics = [];
@@ -47,14 +120,14 @@ export function processTopics(vertices, topics) {
 
   const topicCorr = {};
   topics.forEach((t, i) => {
-    const id = t.topic;
-    topicCorr[t.topic] = i;
+    const topicId = t.topic;
+    topicCorr[topicId] = i;
     if (t.connected_topics.top.length) {
       newTopics.push({
-        id,
+        id: topicId,
         name: vertices[t.vertex].term,
         topVertices: t.connected_topics.top,
-        vertices: verticesByTopics[id],
+        vertices: verticesByTopics[topicId],
         color: topicColor[i] || '#dddddd',
         total: t.connected_topics.total + 1,
       });

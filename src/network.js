@@ -3,7 +3,7 @@
 import apijs from 'tnt.api';
 
 // import {getData, highlightCluster, toggleTerminals} from './data.js';
-import { getQuery, setInteractors, processTopics } from './data';
+import { getQuery, setInteractors, processTopics, processLinks } from './data';
 import polygon from './polygon';
 
 
@@ -34,7 +34,7 @@ const config = {
   //   .range([d3.rgb('#007AFF'), d3.rgb('#FFF500')]), // The domain is set dynamically
 };
 
-const dispatch = d3.dispatch('click', 'dblclick', 'mouseover', 'mouseout', 'loaded', 'failed', 'selected', 'unselected');
+const dispatch = d3.dispatch('click', 'dblclick', 'mouseover', 'mouseout', 'loaded', 'failed', 'selected', 'unselected', 'topicSelected', 'topicUnselected');
 
 export default function () {
   const render = function (container) {
@@ -53,8 +53,12 @@ export default function () {
         setInteractors(graph.vertices, graph.connections);
         const topics = processTopics(graph.vertices, resp.data.topics);
 
+        // links contain in- and out- links
+        const links = processLinks(graph.vertices, graph.connections, resp.data.topics);
+
         config.data.nodes = graph.vertices;
-        config.data.links = graph.connections;
+        // config.data.links = [...links.in, ...links.out];
+        config.data.links = links;
         config.data.topics = topics;
 
         getInitialPositions();
@@ -178,7 +182,7 @@ function getInitialPositions() {
 // }
 
 function getLinkWeightExtent(conf) {
-  const links = conf.data.links;
+  const links = conf.data.links.in;
   const extent = d3.extent(links, (d) => d.weight);
   return d3.scaleLinear()
     .domain(extent)
@@ -199,9 +203,6 @@ function getNodeKey(subject) {
 
 
 function clickTopic(topic) {
-  console.log('topic selected...');
-  console.log(topic);
-
   // Look if the topic is selected
   const topicVertex = config.data.nodes[topic.id];
   const key = getNodeKey(topicVertex);
@@ -210,6 +211,7 @@ function clickTopic(topic) {
   if (selected.has(key)) {
     selected.clear();
     topic.vertices.forEach((v) => v.selected = 0);
+    dispatch.call('topicUnselected', this, topic);
   }
   // Selection
   else {
@@ -225,6 +227,7 @@ function clickTopic(topic) {
     topic.vertices.forEach((v) => {
       v.selected = 1;
     });
+    dispatch.call('topicSelected', this, topic);
   }
 
   redraw();
@@ -281,12 +284,15 @@ function selectNode(sNode) {
 
 function drawTopic(topic) {
   const topicPoints = topic.vertices;
-  //const topicPoly = topic.polygon;
+  // const topicPoly = topic.polygon;
 
   // The topics are not drawn while positioning the nodes
   // They are drawn only at the end, but should be included here to follow dragged nodes
-  //if (topicPoly && topicPoints.length >= 3) {
-  const topicPoly = polygon (topicPoints);
+  // if (topicPoly && topicPoints.length >= 3) {
+  if (selected.size) {
+    return;
+  }
+  const topicPoly = polygon(topicPoints);
   // const topicId = topicPoly[0].topic;
   context.beginPath();
   context.fillStyle = topic.color;
@@ -298,7 +304,7 @@ function drawTopic(topic) {
   }
   context.closePath();
   context.fill();
-  //}
+  // }
 }
 
 // function drawTopic(topic) {
@@ -377,8 +383,12 @@ function drawLink(d) {
       context.globalAlpha = 0.05;
     }
   }
+  // if (d.type === 'out') {
+  //   context.globalAlpha = 0.05;
+  // }
   context.moveTo(d.source.x, d.source.y);
-  context.lineWidth = linkWeightScale(d.weight);
+  // context.lineWidth = linkWeightScale(d.weight);
+  context.lineWidth = 2;
   context.lineTo(d.target.x, d.target.y);
   context.stroke();
   context.globalAlpha = 1;
@@ -450,11 +460,14 @@ function redraw() {
   context.translate(transform.x, transform.y);
   context.scale(transform.k, transform.k);
 
+  // Draw out links
+  // data.links.out.forEach(drawLink);
+
   // Draw topics
   data.topics.forEach(drawTopic);
 
-  // Draw links
-  data.links.forEach(drawLink);
+  // Draw in links
+  data.links.in.forEach(drawLink);
 
   // Draw nodes
   data.nodes.forEach(drawNode);
@@ -494,13 +507,15 @@ function createForce(container, conf) {
   //   data.nodes[k].y = ~~conf.height / 2;
   // }
 
+
   force = d3.forceSimulation(data.nodes)
     //.force('links', d3.forceLink(data.links).strength(1).distance(300).iterations(1))
     // .force('charge', d3.forceManyBody().strength(-10))
-    .force('charge', d3.forceManyBody().strength(-10))
+    .force('charge', d3.forceManyBody().strength(-1))
     .force('center', d3.forceCenter().x(conf.width / 2).y(conf.height / 2))
     .force('collision', d3.forceCollide().radius(conf.maxNodeSize))
-    .force('links', d3.forceLink(data.links))
+    // .force('links', d3.forceLink(data.links))
+    .force('links', d3.forceLink(data.links.in))
     .stop();
 
   // .on("tick", ticked)
