@@ -413,6 +413,7 @@ function drawNode(d) {
       context.globalAlpha = 0.05;
     }
   }
+  d.radius = nodeSize;
   context.arc(d.x, d.y, nodeSize, 0, 2 * Math.PI);
   context.fill();
 
@@ -509,7 +510,7 @@ function createForce(container, conf) {
 
 
   force = d3.forceSimulation(data.nodes)
-    //.force('links', d3.forceLink(data.links).strength(1).distance(300).iterations(1))
+    // .force('links', d3.forceLink(data.links).strength(1).distance(300).iterations(1))
     // .force('charge', d3.forceManyBody().strength(-10))
     .force('charge', d3.forceManyBody().strength(-1))
     .force('center', d3.forceCenter().x(conf.width / 2).y(conf.height / 2))
@@ -525,9 +526,10 @@ function createForce(container, conf) {
     .call(d3.drag()
       .container(canvas.node())
       .subject(dragsubject)
-      .on('start', clicked)
+      // .on('start', clicked)
       .on('drag', dragged),
     )
+    .on('click', clicked)
     .call(d3.zoom()
       .scaleExtent([0.01, 5])
       .on('zoom', zoomed),
@@ -564,9 +566,17 @@ function createForce(container, conf) {
     const x = transform.invertX(d3.event.x);
     const y = transform.invertY(d3.event.y);
     const thisNode = force.find(x, y, conf.maxNodeSize);
+
     if (!thisNode) {
       return;
     }
+
+    // Make sure that the node is within the radius of the found node
+    const dist = Math.sqrt(((thisNode.x - x) * (thisNode.x - x)) + ((thisNode.y - y) * (thisNode.y - y)));
+    if (dist > thisNode.radius) {
+      return;
+    }
+
     thisNode.x = transform.applyX(thisNode.x);
     thisNode.y = transform.applyY(thisNode.y);
     return thisNode;
@@ -588,11 +598,33 @@ function createForce(container, conf) {
   }
 
   function clicked() {
-    const subject = d3.event.subject;
-    d3.event.subject.x = transform.invertX(d3.event.x);
-    d3.event.subject.y = transform.invertY(d3.event.y);
+    /* eslint max-len:0 */
 
-    programmaticClick(subject);
+    const x = d3.event.offsetX;
+    const y = d3.event.offsetY;
+    for (let i = 0; i < conf.data.nodes.length; i += 1) {
+      const thisNode = conf.data.nodes[i];
+      const dist = Math.sqrt(((thisNode.x - x) * (thisNode.x - x)) + ((thisNode.y - y) * (thisNode.y - y)));
+      if (dist <= thisNode.radius) {
+        thisNode.x = transform.invertX(d3.event.offsetX);
+        thisNode.y = transform.invertY(d3.event.offsetY);
+        programmaticClick(thisNode);
+        return;
+      }
+    }
+    // conf.data.nodes.forEach((n) => {
+    //   console.log(`${n.term} -- ${n.x},${n.y} vs ${x},${y}`);
+    //   const dist = Math.sqrt(((n.x - x) * (n.x - x)) + ((n.y - y) * (n.y - y)));
+    //   if (dist <= n.radius) {
+    //     programmaticClick(n);
+    //     return;
+    //   }
+    // });
+    // const thisNode = force.find(x, y, conf.maxNodeSize);
+    // console.log('clicked node...');
+    // console.log(thisNode);
+
+    // programmaticClick(thisNode);
 
     // if (subject.trullySelected === true) {
     //   unselectNode(subject);
