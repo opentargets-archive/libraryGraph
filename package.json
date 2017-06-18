@@ -1,6 +1,6 @@
 {
   "name": "ots-graph",
-  "version": "0.0.9",
+  "version": "0.0.10",
   "description": "Graph visualisation component for Open Targets Search",
   "main": "index.js",
   "directories": {
