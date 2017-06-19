@@ -38,7 +38,7 @@ const dispatch = d3.dispatch('click', 'dblclick', 'mouseover', 'mouseout', 'load
 
 export default function () {
   const render = function (container) {
-    getQuery(config.query, config.fields)
+    getQuery(config.query)
       .then((resp) => {
         console.log(resp);
 

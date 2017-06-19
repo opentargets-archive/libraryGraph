@@ -3,23 +3,23 @@
 import axios from 'axios';
 import { schemePaired as topicColor } from 'd3-scale-chromatic';
 
-const topicCorr = {};
+// const topicCorr = {};
 
-export function getQuery(query, fields) {
-  const q = {
-    query: {
-      query_string: {
-        query: query,
-      },
-    },
-    controls: { use_significance: true, sample_size: 10000, timeout: 5000 },
-    connections: { vertices: fields },
-    vertices: fields,
-  };
+export function getQuery(query) {
+  // const q = {
+  //   query: {
+  //     query_string: {
+  //       query: query,
+  //     },
+  //   },
+  //   controls: { use_significance: true, sample_size: 10000, timeout: 5000 },
+  //   connections: { vertices: fields },
+  //   vertices: fields,
+  // };
 
-  const url = 'https://qkorhkwgf1.execute-api.eu-west-1.amazonaws.com/dev/graph/explore';
+  const url = `https://qkorhkwgf1.execute-api.eu-west-1.amazonaws.com/dev/search/topic?query=${query}`;
 
-  return axios.post(url, q);
+  return axios.get(url);
 
   // return axios.get('https://wt-emepyc-gmail-com-0.run.webtask.io/kibana-auth')
   //     .then (function (resp) {
