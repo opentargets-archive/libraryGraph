@@ -66,12 +66,8 @@ export function processLinks(vertices, links, topics) {
     // Different topics
     else {
       // 1. Identify the topics involved
-      // console.log('source...');
-      // console.log(source);
       const sourceTopicVertex = vertices[topicsCorr[source.topic]];
       const targetTopicVertex = vertices[topicsCorr[target.topic]];
-      // console.log('sourceTopicVertex...');
-      // console.log(sourceTopicVertex);
 
       // 2. Set a link between them or just add to any existing link
       if (!outLinksMap[sourceTopicVertex.term]) {

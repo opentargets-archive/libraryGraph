@@ -18,6 +18,7 @@ let transform = d3.zoomIdentity;
 let linkWeightScale;
 let nodeWeightScale;
 const selected = new Map();
+const clicked = new Map();
 
 const config = {
   colors: {}, // expect
@@ -38,6 +39,11 @@ const dispatch = d3.dispatch('click', 'dblclick', 'mouseover', 'mouseout', 'load
 
 export default function () {
   const render = function (container) {
+    // Remove all previously clicked or selected vertices
+    selected.clear();
+    clicked.clear();
+    transform = d3.zoomIdentity;
+
     getQuery(config.query)
       .then((resp) => {
         console.log(resp);
@@ -55,6 +61,9 @@ export default function () {
 
         // links contain in- and out- links
         const links = processLinks(graph.vertices, graph.connections, resp.data.topics);
+
+        // Remove singleton nodes
+        graph.vertices = graph.vertices.filter((d) => d.interactors && d.interactors.length);
 
         config.data.nodes = graph.vertices;
         // config.data.links = [...links.in, ...links.out];
@@ -96,8 +105,12 @@ export default function () {
   };
 
   render.select = programmaticClick;
-
+  render.unselect = (d) => {
+    unselectNode(d);
+    redraw();
+  };
   render.clickTopic = clickTopic;
+  render.getVertexByTerm = getVertexByTerm;
 
   return render;
 }
@@ -202,6 +215,15 @@ function getNodeKey(subject) {
 }
 
 
+function getVertexByTerm(term) {
+  for (let i = 0; i < config.data.nodes.length; i += 1) {
+    const node = config.data.nodes[i];
+    if (node.term === term) {
+      return node;
+    }
+  }
+}
+
 function clickTopic(topic) {
   // Look if the topic is selected
   const topicVertex = config.data.nodes[topic.id];
@@ -235,18 +257,20 @@ function clickTopic(topic) {
 
 function programmaticClick(subject) {
   const k = getNodeKey(subject);
-  if (selected.has(k)) {
+  if (clicked.has(k)) {
     unselectNode(subject);
     dispatch.call('unselected', this, {
       subject,
-      selected: Array.from(selected.values()),
+      // selected: Array.from(selected.values()),
+      selected: Array.from(clicked.values()),
     });
   }
   else {
     selectNode(subject);
     dispatch.call('selected', this, {
       subject,
-      selected: Array.from(selected.values()),
+      // selected: Array.from(selected.values()),
+      selected: Array.from(clicked.values()),
     });
   }
 
@@ -254,6 +278,7 @@ function programmaticClick(subject) {
 }
 
 function unselectNode(uNode) {
+  uNode.clicked = 0;
   uNode.selected -= 1;
   uNode.interactors.forEach((iNode) => {
     iNode.selected -= 1;
@@ -262,6 +287,7 @@ function unselectNode(uNode) {
   // Keep global track of selected nodes
   const key = getNodeKey(uNode);
   selected.delete(key);
+  clicked.delete(key);
 }
 
 function selectNode(sNode) {
@@ -272,6 +298,7 @@ function selectNode(sNode) {
    * The goal is to increment the "selected" field of each vertex (node)
    * only *once* for each click
    */
+  sNode.clicked = 1;
   sNode.selected += 1;
   sNode.interactors.forEach((iNode) => {
     iNode.selected += 1;
@@ -280,6 +307,7 @@ function selectNode(sNode) {
   // add selected node to global selected dict
   const key = getNodeKey(sNode);
   selected.set(key, sNode);
+  clicked.set(key, sNode);
 }
 
 function drawTopic(topic) {
@@ -418,7 +446,7 @@ function drawNode(d) {
   context.fill();
 
   // external circle
-  if (d.selected > 0) {
+  if (d.clicked > 0) {
     context.beginPath();
     context.globalAlpha = 1;
     context.arc(d.x, d.y, nodeSize + 5, 0, 2 * Math.PI);
