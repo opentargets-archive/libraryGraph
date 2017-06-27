@@ -3,8 +3,8 @@
 import apijs from 'tnt.api';
 
 // import {getData, highlightCluster, toggleTerminals} from './data.js';
-import { getQuery, setInteractors, processTopics, processLinks } from './data';
-import polygon from './polygon';
+import { getQuery, setInteractors, processTopics, processLinks, linksForNodes } from './data';
+import { polygon, polygonDims, calcCenter } from './polygon';
 
 
 // polygon([{ x: 100, y: 50 }, { x: 24, y: 88 }, { x: 8, y: 134 }, { x: 23, y: 90 }, { x: 90, y: 90 }, { x: 50, y: 130 }]);
@@ -13,7 +13,9 @@ import polygon from './polygon';
 let force;
 // let link;
 // let node;
+let canvas;
 let context;
+let zoom;
 let transform = d3.zoomIdentity;
 let linkWeightScale;
 let nodeWeightScale;
@@ -225,34 +227,38 @@ function getVertexByTerm(term) {
 }
 
 function clickTopic(topic) {
-  // Look if the topic is selected
-  const topicVertex = config.data.nodes[topic.id];
-  const key = getNodeKey(topicVertex);
 
-  // Unselection
-  if (selected.has(key)) {
-    selected.clear();
-    topic.vertices.forEach((v) => v.selected = 0);
-    dispatch.call('topicUnselected', this, topic);
-  }
-  // Selection
-  else {
-    // Unselect anything previously selected
-    selected.clear();
-    config.data.nodes.forEach((v) => {
-      v.selected = 0;
-    });
+  // Zoom on the vertex
+  zoomOnNodes(topic.vertices);
 
-    // Select the vertices of the topic
-    // const topicVertex = config.data.nodes[topic.id]
-    selected.set(key, topicVertex);
-    topic.vertices.forEach((v) => {
-      v.selected = 1;
-    });
-    dispatch.call('topicSelected', this, topic);
-  }
-
-  redraw();
+  // // Look if the topic is selected
+  // const topicVertex = config.data.nodes[topic.id];
+  // const key = getNodeKey(topicVertex);
+  //
+  // // Unselection
+  // if (selected.has(key)) {
+  //   selected.clear();
+  //   topic.vertices.forEach((v) => v.selected = 0);
+  //   dispatch.call('topicUnselected', this, topic);
+  // }
+  // // Selection
+  // else {
+  //   // Unselect anything previously selected
+  //   selected.clear();
+  //   config.data.nodes.forEach((v) => {
+  //     v.selected = 0;
+  //   });
+  //
+  //   // Select the vertices of the topic
+  //   // const topicVertex = config.data.nodes[topic.id]
+  //   selected.set(key, topicVertex);
+  //   topic.vertices.forEach((v) => {
+  //     v.selected = 1;
+  //   });
+  //   dispatch.call('topicSelected', this, topic);
+  // }
+  //
+  // redraw();
 }
 
 function programmaticClick(subject) {
@@ -288,6 +294,21 @@ function unselectNode(uNode) {
   const key = getNodeKey(uNode);
   selected.delete(key);
   clicked.delete(key);
+
+  // If there are selected nodes, zoom on them
+  let selectedNodes = [];
+  if (selected.size) {
+    config.data.nodes.forEach((d) => {
+      if (d.selected > 0) {
+        selectedNodes.push(d);
+      }
+    });
+  }
+  else {
+    selectedNodes = config.data.nodes;
+  }
+
+  zoomOnNodes(selectedNodes);
 }
 
 function selectNode(sNode) {
@@ -308,31 +329,77 @@ function selectNode(sNode) {
   const key = getNodeKey(sNode);
   selected.set(key, sNode);
   clicked.set(key, sNode);
+
+  // If there are selected nodes, zoom on them
+  let selectedNodes = [];
+  if (selected.size) {
+    config.data.nodes.forEach((d) => {
+      if (d.selected > 0) {
+        selectedNodes.push(d);
+      }
+    });
+  }
+  else {
+    selectedNodes = config.data.nodes;
+  }
+
+  zoomOnNodes(selectedNodes);
 }
 
 function drawTopic(topic) {
   const topicPoints = topic.vertices;
   // const topicPoly = topic.polygon;
 
+  let farAway = true;
+
   // The topics are not drawn while positioning the nodes
   // They are drawn only at the end, but should be included here to follow dragged nodes
   // if (topicPoly && topicPoints.length >= 3) {
-  if (selected.size) {
-    return;
+  // if (selected.size) {
+  //   return;
+  // }
+  const { points: topicPoly, center: topicCenter } = polygon(topicPoints);
+  // If we are too far (zoomed out), the topic is just the the polygon
+  const { width: polyWidth, height: polyHeight } = polygonDims(topicPoly, transform);
+  if ((config.width < polyWidth * 3) || (config.height < polyHeight * 3)) {
+    farAway = false;
+
+    // Plot nodes
+    // const nodeLinks = linksForNodes(topicPoints);
+    // nodeLinks.forEach(drawLink);
+
+    // Plot links
+    // topicPoints.forEach(drawNode);
   }
-  const topicPoly = polygon(topicPoints);
-  // const topicId = topicPoly[0].topic;
+
   context.beginPath();
   context.fillStyle = topic.color;
   context.strokeStyle = topic.color;
-  context.globalAlpha = 0.3;
+  context.globalAlpha = 0.1;
   context.moveTo(topicPoly[0].x, topicPoly[0].y);
   for (let i = 1; i < topicPoly.length; i += 1) {
     context.lineTo(topicPoly[i].x, topicPoly[i].y);
   }
   context.closePath();
   context.fill();
-  // }
+
+  // draw links
+  const nodeLinks = linksForNodes(topicPoints);
+  nodeLinks.forEach((d) => {
+    drawLink(d, farAway);
+  });
+  // draw nodes
+  topicPoints.forEach((d) => {
+    drawNode(d, farAway);
+  });
+
+  if (farAway) {
+    // draw the label of the topic
+    context.font = '30px Arial';
+    context.textAlign = 'center';
+    context.globalAlpha = 1;
+    context.fillText(topic.name, topicCenter.x, topicCenter.y);
+  }
 }
 
 // function drawTopic(topic) {
@@ -397,20 +464,46 @@ function drawTopic(topic) {
 //   context.stroke();
 // }
 
-function drawLink(d) {
+function drawLink(d, farAway) {
   context.beginPath();
   context.strokeStyle = '#8da0cb';
-  if (selected.size === 0) {
-    context.globalAlpha = 0.5;
+
+  // To draw the link:
+  // Source and target have to be in the same topic
+  // OR
+  // Source or target have to be selected
+  if ((!d.source.clicked && !d.target.clicked) && (d.source.topic !== d.target.topic)) {
+    return;
+  }
+
+  if ((d.source.selected > 0) && (d.target.selected > 0)) {
+    context.globalAlpha = 1;
   }
   else {
-    if ((d.source.selected > 0) && (d.target.selected > 0)) {
-      context.globalAlpha = 0.5;
-    }
-    else {
+    if (selected.size || farAway) {
       context.globalAlpha = 0.05;
     }
+    else {
+      context.globalAlpha = 0.5;
+    }
   }
+
+  // if (farAway) {
+  //   context.globalAlpha = 0.05;
+  // }
+  // else {
+  //   if (selected.size === 0) {
+  //     context.globalAlpha = 0.5;
+  //   }
+  //   else {
+  //     if ((d.source.selected > 0) && (d.target.selected > 0)) {
+  //       context.globalAlpha = 0.5;
+  //     }
+  //     else {
+  //       context.globalAlpha = 0.05;
+  //     }
+  //   }
+  // }
   // if (d.type === 'out') {
   //   context.globalAlpha = 0.05;
   // }
@@ -422,7 +515,7 @@ function drawLink(d) {
   context.globalAlpha = 1;
 }
 
-function drawNode(d) {
+function drawNode(d, farAway) {
   const nodeSize = nodeWeightScale(d.weight);
 
   // Node
@@ -430,17 +523,35 @@ function drawNode(d) {
   context.moveTo(d.x, d.y);
   // context.fillStyle = config.colors[d.field];
   context.fillStyle = d.color;
-  if (selected.size === 0) {
-    context.globalAlpha = 0.5;
+
+  if (d.selected > 0) {
+    context.globalAlpha = 1;
   }
   else {
-    if (d.selected > 0) {
-      context.globalAlpha = 0.8;
-    }
-    else {
+    if (selected.size || farAway) {
       context.globalAlpha = 0.05;
     }
+    else {
+      context.globalAlpha = 0.5;
+    }
   }
+
+  // if (farAway) {
+  //   context.globalAlpha = 0.05;
+  // }
+  // else {
+  //   if (selected.size === 0) {
+  //     context.globalAlpha = 0.5;
+  //   }
+  //   else {
+  //     if (d.selected > 0) {
+  //       context.globalAlpha = 0.8;
+  //     }
+  //     else {
+  //       context.globalAlpha = 0.05;
+  //     }
+  //   }
+  // }
   d.radius = nodeSize;
   context.arc(d.x, d.y, nodeSize, 0, 2 * Math.PI);
   context.fill();
@@ -464,21 +575,23 @@ function drawNode(d) {
   // }
 
   // label
-  if (selected.size === 0) {
-    context.globalAlpha = 1;
-  }
-  else {
-    if (d.selected > 0) {
+  if (!farAway) {
+    if (selected.size === 0) {
       context.globalAlpha = 1;
     }
     else {
-      context.globalAlpha = 0;
+      if (d.selected > 0) {
+        context.globalAlpha = 1;
+      }
+      else {
+        context.globalAlpha = 0;
+      }
     }
+    context.font = '9px Arial';
+    context.textAlign = 'center';
+    context.fillStyle = 'black';
+    context.fillText(d.term, d.x, d.y + (nodeSize + 12));
   }
-  context.font = '9px Arial';
-  context.textAlign = 'center';
-  context.fillStyle = 'black';
-  context.fillText(d.term, d.x, d.y + (nodeSize + 12));
 }
 
 function redraw() {
@@ -496,12 +609,39 @@ function redraw() {
   data.topics.forEach(drawTopic);
 
   // Draw in links
-  data.links.in.forEach(drawLink);
+  // data.links.in.forEach(drawLink);
 
   // Draw nodes
-  data.nodes.forEach(drawNode);
+  // data.nodes.forEach(drawNode);
 
   context.restore();
+}
+
+// Focus on topic will receive all the points for a topic
+// and focus the zoom level on that topic
+function zoomOnNodes(nodes) {
+  const centerAbs = calcCenter(nodes);
+  // const center = {
+  //   x: (centerAbs.x - (conf.width / 2)),
+  //   y: (centerAbs.y - (conf.height / 2)),
+  // };
+
+  const xExtent = d3.extent(nodes, (d) => d.x);
+  const yExtent = d3.extent(nodes, (d) => d.y);
+  const width = xExtent[1] - xExtent[0];
+  const height = yExtent[1] - yExtent[0];
+  const newScale = d3.min([(config.width / width), (config.height / height)]);
+
+  canvas
+    .transition()
+    .duration(1500)
+    .call(zoom.transform,
+      // transform
+      d3.zoomIdentity
+        .translate(config.width / 2, config.height / 2)
+        .scale(newScale * 0.9)
+        .translate(-centerAbs.x, -centerAbs.y)
+    );
 }
 
 function createForce(container, conf) {
@@ -513,7 +653,7 @@ function createForce(container, conf) {
   linkWeightScale = getLinkWeightExtent(conf);
   nodeWeightScale = getNodeWeightExtent(conf);
 
-  const canvas = d3.select(container)
+  canvas = d3.select(container)
     .append('canvas')
     .attr('width', conf.width)
     .attr('height', conf.height);
@@ -536,11 +676,10 @@ function createForce(container, conf) {
   //   data.nodes[k].y = ~~conf.height / 2;
   // }
 
-
   force = d3.forceSimulation(data.nodes)
     // .force('links', d3.forceLink(data.links).strength(1).distance(300).iterations(1))
     // .force('charge', d3.forceManyBody().strength(-10))
-    .force('charge', d3.forceManyBody().strength(-1))
+    .force('charge', d3.forceManyBody().strength(1))
     .force('center', d3.forceCenter().x(conf.width / 2).y(conf.height / 2))
     .force('collision', d3.forceCollide().radius(conf.maxNodeSize))
     // .force('links', d3.forceLink(data.links))
@@ -550,7 +689,11 @@ function createForce(container, conf) {
   // .on("tick", ticked)
   // .on("end", ended);
 
+  zoom = d3.zoom()
+    .on('zoom', zoomed);
+
   canvas
+    // .call(showAll)
     .call(d3.drag()
       .container(canvas.node())
       .subject(dragsubject)
@@ -558,16 +701,19 @@ function createForce(container, conf) {
       .on('drag', dragged),
     )
     .on('click', clicked)
-    .call(d3.zoom()
-      .scaleExtent([0.01, 5])
-      .on('zoom', zoomed),
-    );
+    .call(zoom);
 
   // Ticks
   const n = Math.ceil(Math.log(force.alphaMin()) / Math.log(1 - force.alphaDecay()));
   for (let i = 1; i <= n; i += 1) {
     force.tick();
   }
+
+  // setTimeout(() => {
+  //   console.log('zooming to topic...');
+  //   console.log(data.topics[0]);
+  //   zoomOnNodes(data.topics[0].vertices);
+  // }, 3000);
 
   // And clear the progressing bar
   ticked();
@@ -581,6 +727,10 @@ function createForce(container, conf) {
 
   function ended() {
     meter.style.display = 'none';
+
+    // Simulation finished... Calculate the center of the graph, the total width and height
+    zoomOnNodes(data.nodes);
+
 
     // Calculate all the polygons
     // config.data.topics.forEach((t) => {
@@ -630,16 +780,21 @@ function createForce(container, conf) {
 
     const x = d3.event.offsetX;
     const y = d3.event.offsetY;
+    let r;
     for (let i = 0; i < conf.data.nodes.length; i += 1) {
       const thisNode = conf.data.nodes[i];
       const dist = Math.sqrt(((thisNode.x - x) * (thisNode.x - x)) + ((thisNode.y - y) * (thisNode.y - y)));
-      if (dist <= thisNode.radius) {
+      // console.log(`${x},${y} vs ${thisNode.term}:${thisNode.x},${thisNode.y} (${thisNode.radius} vs ${dist}) -- ${transform.k}`);
+      if (dist <= (thisNode.radius)) {
         thisNode.x = transform.invertX(d3.event.offsetX);
         thisNode.y = transform.invertY(d3.event.offsetY);
         programmaticClick(thisNode);
-        return;
+        // return;
+        r = thisNode;
       }
     }
+    return r;
+
     // conf.data.nodes.forEach((n) => {
     //   console.log(`${n.term} -- ${n.x},${n.y} vs ${x},${y}`);
     //   const dist = Math.sqrt(((n.x - x) * (n.x - x)) + ((n.y - y) * (n.y - y)));
@@ -684,6 +839,25 @@ function createForce(container, conf) {
     transform = d3.event.transform;
     redraw();
   }
+
+  // function centerP (points) {
+  //   let maxX = -Infinity;
+  //   let maxY = -Infinity;
+  //   let minX = Infinity;
+  //   let minY = Infinity;
+  //
+  //   points.forEach((p) => {
+  //     if (p.x > maxX) maxX = p.x;
+  //     if (p.y > maxY) maxY = p.y;
+  //     if (p.x < minX) minX = p.x;
+  //     if (p.y < minY) minY = p.y;
+  //   });
+  //   const cx = minX + ~~((maxX - minX)/2);
+  //   const cy = minY + ~~((maxY - minY)/2);
+  //
+  //   return {x: cx, y:cy};
+  // }
+
 
   // function tick(e) {
   //     console.log(`alpha: ${force.alpha()}`);

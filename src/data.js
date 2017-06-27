@@ -35,6 +35,20 @@ export function getQuery(query) {
   //     });
 }
 
+export function linksForNodes(vertices) {
+  const links = [];
+  vertices.forEach((d) => {
+    d.interactors.forEach((c) => {
+//      if (d.topic === c.topic) {
+      links.push({
+        source: d,
+        target: c,
+      });
+//       }
+    });
+  });
+  return links;
+}
 
 export function processLinks(vertices, links, topics) {
   // Get the topics correlation

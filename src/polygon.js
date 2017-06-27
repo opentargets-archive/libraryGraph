@@ -1,19 +1,21 @@
+/* global d3:true */
 
+export { polygon, polygonDims, calcCenter };
 
-export default function (points) {
+function polygon(points) {
   // 1. Find the center
   const center = calcCenter(points);
 
   // 2. set the angle for each point and get the furthest points per quadrant
-  let polygon = setAngles(points, center);
+  let poly = setAngles(points, center);
 
   // 3. Refine covering points outside the polygon
   while (true) {
-    const outside = points.filter((p) => !isInside(p, polygon.filter((p) => p)));
+    const outside = points.filter((p) => !isInside(p, poly.filter((p2) => p2)));
     if (outside.length) {
       const furthest = outside.sort((p) => p.dist)[0];
-      polygon.push(furthest);
-      polygon = polygon.sort((v1, v2) => v1.angle - v2.angle);
+      poly.push(furthest);
+      poly = poly.sort((v1, v2) => v1.angle - v2.angle);
     }
     else {
       break;
@@ -21,9 +23,13 @@ export default function (points) {
   }
 
   // 4. Return the resulting polygon
-  return polygon.filter((p) => p);
+  return {
+    points: poly.filter((p) => p),
+    center,
+  };
 }
 
+// Given a set of points, calculates the geometric center
 function calcCenter(points) {
   let maxX = -Infinity,
     minX = Infinity,
@@ -72,8 +78,6 @@ function setAngles(points, center) {
   return furthestPerQuadrant;
 }
 
-
-
 function setAngle(c, p) {
   /* eslint no-param-reassign:0 */
   let rads = Math.atan2(p.x - c.x, p.y - c.y);
@@ -116,4 +120,13 @@ function isInside(p, poly) {
   }
 
   return inside;
+}
+
+function polygonDims(poly, t) {
+  const xExtent = d3.extent(poly, (d) => d.x);
+  const yExtent = d3.extent(poly, (d) => d.y);
+  return {
+    width: t.applyX(xExtent[1]) - t.applyX(xExtent[0]),
+    height: t.applyY(yExtent[1]) - t.applyY(yExtent[0]),
+  };
 }
