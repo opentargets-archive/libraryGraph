@@ -229,7 +229,7 @@ function getVertexByTerm(term) {
 function clickTopic(topic) {
 
   // Zoom on the vertex
-  zoomOnNodes(topic.vertices);
+  zoomOnNodes(topic.vertices, true); // true for transitions
 
   // // Look if the topic is selected
   // const topicVertex = config.data.nodes[topic.id];
@@ -308,7 +308,7 @@ function unselectNode(uNode) {
     selectedNodes = config.data.nodes;
   }
 
-  zoomOnNodes(selectedNodes);
+  zoomOnNodes(selectedNodes, true); // true for transition
 }
 
 function selectNode(sNode) {
@@ -343,7 +343,7 @@ function selectNode(sNode) {
     selectedNodes = config.data.nodes;
   }
 
-  zoomOnNodes(selectedNodes);
+  zoomOnNodes(selectedNodes, true); // true for transition
 }
 
 function drawTopic(topic) {
@@ -619,7 +619,7 @@ function redraw() {
 
 // Focus on topic will receive all the points for a topic
 // and focus the zoom level on that topic
-function zoomOnNodes(nodes) {
+function zoomOnNodes(nodes, transition) {
   const centerAbs = calcCenter(nodes);
   // const center = {
   //   x: (centerAbs.x - (conf.width / 2)),
@@ -632,16 +632,28 @@ function zoomOnNodes(nodes) {
   const height = yExtent[1] - yExtent[0];
   const newScale = d3.min([(config.width / width), (config.height / height)]);
 
-  canvas
-    .transition()
-    .duration(1500)
-    .call(zoom.transform,
-      // transform
-      d3.zoomIdentity
-        .translate(config.width / 2, config.height / 2)
-        .scale(newScale * 0.9)
-        .translate(-centerAbs.x, -centerAbs.y)
-    );
+  if (transition) {
+    canvas
+      .transition()
+      .duration(1500)
+      .call(zoom.transform,
+        // transform
+        d3.zoomIdentity
+          .translate(config.width / 2, config.height / 2)
+          .scale(newScale * 0.9)
+          .translate(-centerAbs.x, -centerAbs.y)
+      );
+  }
+  else {
+    canvas
+      .call(zoom.transform,
+        // transform
+        d3.zoomIdentity
+          .translate(config.width / 2, config.height / 2)
+          .scale(newScale * 0.9)
+          .translate(-centerAbs.x, -centerAbs.y)
+      );
+  }
 }
 
 function createForce(container, conf) {
@@ -729,7 +741,7 @@ function createForce(container, conf) {
     meter.style.display = 'none';
 
     // Simulation finished... Calculate the center of the graph, the total width and height
-    zoomOnNodes(data.nodes);
+    zoomOnNodes(data.nodes, false); // false for transition
 
 
     // Calculate all the polygons
