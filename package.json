@@ -1,6 +1,6 @@
 {
   "name": "otl-graph",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Graph visualisation component for Open Targets Library topics",
   "main": "index.js",
   "directories": {
