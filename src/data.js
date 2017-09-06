@@ -17,7 +17,7 @@ export function getQuery(query) {
   //   vertices: fields,
   // };
 
-  const url = `https://qkorhkwgf1.execute-api.eu-west-1.amazonaws.com/dev/search/topic?query=${query}`;
+  const url = `https://vy36p7a9ld.execute-api.eu-west-1.amazonaws.com/dev/search/topic?query=${query}`;
 
   return axios.get(url);
 
